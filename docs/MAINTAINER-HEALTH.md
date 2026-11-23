@@ -57,6 +57,7 @@ The community issue factory provides continuous, self-contained micro-contributi
 | **Issues #655–#659** | [`docs/GITHUB_HACKTOBERFEST_ISSUES_655_659.md`](GITHUB_HACKTOBERFEST_ISSUES_655_659.md) | High-impact cognitive recovery, statistics, cryptography, and behavioral elasticity utilities | First-timers & Hacktoberfest |
 | **Issues #661–#670** | [`docs/GITHUB_HACKTOBERFEST_ISSUES_661_670.md`](GITHUB_HACKTOBERFEST_ISSUES_661_670.md) | Implementation intentions, streak shields, opportunity cost, and circadian models | First-timers & Hacktoberfest |
 | **Issues #671–#685** | [`docs/GITHUB_HACKTOBERFEST_ISSUES_671_685.md`](GITHUB_HACKTOBERFEST_ISSUES_671_685.md) | Routine entropy, distraction triage, Fogg behavior model, delta-RLE, and Dutch auctions | First-timers & Hacktoberfest |
+| **Issues #808–#813** | [`docs/GITHUB_HACKTOBERFEST_ISSUES_808_813.md`](GITHUB_HACKTOBERFEST_ISSUES_808_813.md) | Hick's law, Dunbar bandwidth, circadian stability, Epworth somnolence, Ebbinghaus decay, and Fitts's law | First-timers & Hacktoberfest |
 
 ---
 
