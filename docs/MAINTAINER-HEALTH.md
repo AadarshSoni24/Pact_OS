@@ -12,7 +12,7 @@
 | **Integration Line** | `phase-6` |
 | **Contributor Expansion Branch** | `community/open-source-contributor-expansion` |
 | **Certified Application Baseline** | `9d83eb8` (Phase 14 Production Freeze) |
-| **Community Contributors** | **55 Total Contributors** ([CONTRIBUTORS.md](../CONTRIBUTORS.md)) |
+| **Community Contributors** | **61 Total Contributors** ([CONTRIBUTORS.md](../CONTRIBUTORS.md)) |
 | **Repository Issue Volume** | **514 Total Issues** (330 Open, 184 Closed) |
 | **Pull Request Throughput** | **170 Pull Requests** (145 Merged, 7 Open, 18 Closed) |
 | **Supabase Migrations** | **26/26 Sequential Migrations (Frozen)** |
