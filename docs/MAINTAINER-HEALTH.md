@@ -15,7 +15,7 @@
 | **Community Contributors** | **61 Total Contributors** ([CONTRIBUTORS.md](../CONTRIBUTORS.md)) |
 | **Repository Issue Volume** | **514 Total Issues** (330 Open, 184 Closed) |
 | **Pull Request Throughput** | **170 Pull Requests** (145 Merged, 7 Open, 18 Closed) |
-| **Supabase Migrations** | **26/26 Sequential Migrations (Frozen)** |
+| **Supabase Migrations** | **27/27 Sequential Migrations (Frozen)** |
 | **Authoritative Test Matrix** | **112/112 Test Suites (100% Pass, 0 Failures)** |
 | **Quality Gates** | **TypeScript Strict (0 errors), ESLint (0 warnings), Release Preflight (12/12 PASS)** |
 
@@ -105,7 +105,7 @@ Fast-track Merge (Maintainer approval)
 
 Maintainers must protect the following core architecture boundaries from unintended modifications:
 
-1. **`supabase/migrations/`**: All 26 migrations are frozen. Schema changes require explicit migration review.
+1. **`supabase/migrations/`**: All 27 migrations are frozen. Schema changes require explicit migration review.
 2. **PostgreSQL RLS Policies**: Row Level Security policies governing multi-tenant data access must never be bypassed.
 3. **Authentication Boundaries**: Session handling, WebAuthn passkey challenges, and SSO replay protection.
 4. **Financial Arithmetic**: Integer-cent calculations in `src/lib/money.ts`.
