@@ -1,8 +1,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHmac } from 'node:crypto';
 import {
   generateSignedToken,
   verifySignedToken,
+  isValidCalendarIsoString,
   type SignedTokenPayload,
 } from '../src/lib/security/signed-token';
 
@@ -100,5 +102,104 @@ describe('HMAC-SHA256 Signed Verification Token Generator (signed-token.ts)', ()
     assert.strictEqual(verifySignedToken('', validSecret).isValid, false);
     assert.strictEqual(verifySignedToken('no-dot-token', validSecret).isValid, false);
     assert.strictEqual(verifySignedToken('part1.part2.part3', validSecret).isValid, false);
+  });
+
+  describe('Security Hardening & Edge-Case Validations (CodeRabbit Review)', () => {
+    it('rejects correctly signed tokens whose root payload is null or an array', () => {
+      // Craft a signed token where payload JSON is null
+      const nullPayloadB64 = Buffer.from('null', 'utf-8').toString('base64url');
+      const nullSig = createHmac('sha256', validSecret).update(nullPayloadB64).digest('base64url');
+      const nullToken = `${nullPayloadB64}.${nullSig}`;
+
+      const nullResult = verifySignedToken(nullToken, validSecret);
+      assert.strictEqual(nullResult.isValid, false);
+      assert.strictEqual(nullResult.payload, null);
+      assert.match(nullResult.error ?? '', /expected a non-null object/i);
+
+      // Craft a signed token where payload JSON is an array
+      const arrPayloadB64 = Buffer.from('["pact-1", "user-1"]', 'utf-8').toString('base64url');
+      const arrSig = createHmac('sha256', validSecret).update(arrPayloadB64).digest('base64url');
+      const arrToken = `${arrPayloadB64}.${arrSig}`;
+
+      const arrResult = verifySignedToken(arrToken, validSecret);
+      assert.strictEqual(arrResult.isValid, false);
+      assert.strictEqual(arrResult.payload, null);
+      assert.match(arrResult.error ?? '', /expected a non-null object/i);
+    });
+
+    it('rejects signed payloads with wrong field types or unauthorized action', () => {
+      // Invalid field types (e.g. pactId is a number, action is unlisted)
+      const invalidFields = {
+        pactId: 12345,
+        verifierId: true,
+        action: 'delete',
+        expiresAtIso: '2027-01-01T00:00:00.000Z',
+      };
+      const b64 = Buffer.from(JSON.stringify(invalidFields), 'utf-8').toString('base64url');
+      const sig = createHmac('sha256', validSecret).update(b64).digest('base64url');
+      const token = `${b64}.${sig}`;
+
+      const result = verifySignedToken(token, validSecret);
+      assert.strictEqual(result.isValid, false);
+      assert.strictEqual(result.payload, null);
+      assert.match(result.error ?? '', /missing or invalid/i);
+    });
+
+    it('rejects signed payloads with invalid customData type (e.g. array or primitive)', () => {
+      const invalidCustomData = {
+        pactId: 'pact-1',
+        verifierId: 'ver-1',
+        action: 'approve',
+        expiresAtIso: '2027-01-01T00:00:00.000Z',
+        customData: ['not', 'a', 'record'],
+      };
+      const b64 = Buffer.from(JSON.stringify(invalidCustomData), 'utf-8').toString('base64url');
+      const sig = createHmac('sha256', validSecret).update(b64).digest('base64url');
+      const token = `${b64}.${sig}`;
+
+      const result = verifySignedToken(token, validSecret);
+      assert.strictEqual(result.isValid, false);
+      assert.strictEqual(result.payload, null);
+      assert.match(result.error ?? '', /customData: must be a record object/i);
+    });
+
+    it('rejects invalid or unparseable injected nowClockIso dates', () => {
+      const token = generateSignedToken(mockPayload, validSecret);
+      const result = verifySignedToken(token, validSecret, 'invalid-clock-string');
+
+      assert.strictEqual(result.isValid, false);
+      assert.strictEqual(result.payload, null);
+      assert.strictEqual(result.error, 'Invalid nowClockIso date format.');
+    });
+
+    it('rejects impossible calendar dates like February 30 (e.g. 2027-02-30)', () => {
+      // Craft a signed payload with impossible calendar date Feb 30
+      const impossibleDatePayload = {
+        pactId: 'pact-123',
+        verifierId: 'ver-456',
+        action: 'approve',
+        expiresAtIso: '2027-02-30T00:00:00.000Z',
+      };
+      const b64 = Buffer.from(JSON.stringify(impossibleDatePayload), 'utf-8').toString('base64url');
+      const sig = createHmac('sha256', validSecret).update(b64).digest('base64url');
+      const token = `${b64}.${sig}`;
+
+      const result = verifySignedToken(token, validSecret, '2027-01-01T00:00:00.000Z');
+      assert.strictEqual(result.isValid, false);
+      assert.strictEqual(result.payload, null);
+      assert.strictEqual(result.error, 'Invalid expiresAtIso date format.');
+
+      // Also ensure generator throws on impossible dates
+      assert.throws(
+        () => generateSignedToken(impossibleDatePayload as any, validSecret),
+        /expiresAtIso must be a valid calendar ISO date string/i
+      );
+    });
+
+    it('correctly handles leap year dates (2024-02-29 vs 2023-02-29)', () => {
+      assert.strictEqual(isValidCalendarIsoString('2024-02-29T00:00:00.000Z'), true);
+      assert.strictEqual(isValidCalendarIsoString('2023-02-29T00:00:00.000Z'), false);
+      assert.strictEqual(isValidCalendarIsoString('2026-04-31T00:00:00.000Z'), false);
+    });
   });
 });
