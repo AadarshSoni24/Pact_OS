@@ -127,22 +127,74 @@ describe('HMAC-SHA256 Signed Verification Token Generator (signed-token.ts)', ()
       assert.match(arrResult.error ?? '', /expected a non-null object/i);
     });
 
-    it('rejects signed payloads with wrong field types or unauthorized action', () => {
-      // Invalid field types (e.g. pactId is a number, action is unlisted)
-      const invalidFields = {
+    it('independently validates and rejects invalid pactId', () => {
+      // Number pactId
+      const payloadWithNumericPactId = {
         pactId: 12345,
+        verifierId: 'user-verifier-9988',
+        action: 'approve',
+        expiresAtIso: '2027-01-01T00:00:00.000Z',
+      };
+      const b64Num = Buffer.from(JSON.stringify(payloadWithNumericPactId), 'utf-8').toString('base64url');
+      const sigNum = createHmac('sha256', validSecret).update(b64Num).digest('base64url');
+      const resultNum = verifySignedToken(`${b64Num}.${sigNum}`, validSecret);
+      assert.strictEqual(resultNum.isValid, false);
+      assert.match(resultNum.error ?? '', /pactId/i);
+
+      // Empty string pactId
+      const payloadWithEmptyPactId = {
+        pactId: '   ',
+        verifierId: 'user-verifier-9988',
+        action: 'approve',
+        expiresAtIso: '2027-01-01T00:00:00.000Z',
+      };
+      const b64Empty = Buffer.from(JSON.stringify(payloadWithEmptyPactId), 'utf-8').toString('base64url');
+      const sigEmpty = createHmac('sha256', validSecret).update(b64Empty).digest('base64url');
+      const resultEmpty = verifySignedToken(`${b64Empty}.${sigEmpty}`, validSecret);
+      assert.strictEqual(resultEmpty.isValid, false);
+      assert.match(resultEmpty.error ?? '', /pactId/i);
+    });
+
+    it('independently validates and rejects invalid verifierId', () => {
+      // Boolean verifierId
+      const payloadWithBoolVerifierId = {
+        pactId: 'pact-uuid-1234-abcd',
         verifierId: true,
+        action: 'approve',
+        expiresAtIso: '2027-01-01T00:00:00.000Z',
+      };
+      const b64Bool = Buffer.from(JSON.stringify(payloadWithBoolVerifierId), 'utf-8').toString('base64url');
+      const sigBool = createHmac('sha256', validSecret).update(b64Bool).digest('base64url');
+      const resultBool = verifySignedToken(`${b64Bool}.${sigBool}`, validSecret);
+      assert.strictEqual(resultBool.isValid, false);
+      assert.match(resultBool.error ?? '', /verifierId/i);
+
+      // Empty string verifierId
+      const payloadWithEmptyVerifierId = {
+        pactId: 'pact-uuid-1234-abcd',
+        verifierId: '',
+        action: 'approve',
+        expiresAtIso: '2027-01-01T00:00:00.000Z',
+      };
+      const b64Empty = Buffer.from(JSON.stringify(payloadWithEmptyVerifierId), 'utf-8').toString('base64url');
+      const sigEmpty = createHmac('sha256', validSecret).update(b64Empty).digest('base64url');
+      const resultEmpty = verifySignedToken(`${b64Empty}.${sigEmpty}`, validSecret);
+      assert.strictEqual(resultEmpty.isValid, false);
+      assert.match(resultEmpty.error ?? '', /verifierId/i);
+    });
+
+    it('independently validates and rejects unlisted action', () => {
+      const payloadWithInvalidAction = {
+        pactId: 'pact-uuid-1234-abcd',
+        verifierId: 'user-verifier-9988',
         action: 'delete',
         expiresAtIso: '2027-01-01T00:00:00.000Z',
       };
-      const b64 = Buffer.from(JSON.stringify(invalidFields), 'utf-8').toString('base64url');
+      const b64 = Buffer.from(JSON.stringify(payloadWithInvalidAction), 'utf-8').toString('base64url');
       const sig = createHmac('sha256', validSecret).update(b64).digest('base64url');
-      const token = `${b64}.${sig}`;
-
-      const result = verifySignedToken(token, validSecret);
+      const result = verifySignedToken(`${b64}.${sig}`, validSecret);
       assert.strictEqual(result.isValid, false);
-      assert.strictEqual(result.payload, null);
-      assert.match(result.error ?? '', /missing or invalid/i);
+      assert.match(result.error ?? '', /action/i);
     });
 
     it('rejects signed payloads with invalid customData type (e.g. array or primitive)', () => {
@@ -169,11 +221,53 @@ describe('HMAC-SHA256 Signed Verification Token Generator (signed-token.ts)', ()
 
       assert.strictEqual(result.isValid, false);
       assert.strictEqual(result.payload, null);
-      assert.strictEqual(result.error, 'Invalid nowClockIso date format.');
+      assert.match(result.error ?? '', /nowClockIso/i);
+    });
+
+    it('rejects timezone-free date-time values to ensure unambiguous absolute instant', () => {
+      const timezoneFreeIso = '2027-01-01T12:00:00';
+
+      // Rejection in generator
+      const timezoneFreePayload = {
+        ...mockPayload,
+        expiresAtIso: timezoneFreeIso,
+      };
+      assert.throws(
+        () => generateSignedToken(timezoneFreePayload, validSecret),
+        /explicit timezone offset/i
+      );
+
+      // Rejection in verifier
+      const b64 = Buffer.from(JSON.stringify(timezoneFreePayload), 'utf-8').toString('base64url');
+      const sig = createHmac('sha256', validSecret).update(b64).digest('base64url');
+      const token = `${b64}.${sig}`;
+
+      const result = verifySignedToken(token, validSecret);
+      assert.strictEqual(result.isValid, false);
+      assert.match(result.error ?? '', /explicit timezone offset/i);
+
+      // Rejection in helper
+      assert.strictEqual(isValidCalendarIsoString(timezoneFreeIso), false);
+    });
+
+    it('correctly accepts and handles explicit timezone offsets (e.g. +05:30, -08:00)', () => {
+      const explicitOffsetPayload: SignedTokenPayload = {
+        ...mockPayload,
+        expiresAtIso: '2027-01-01T12:00:00+05:30',
+      };
+
+      const token = generateSignedToken(explicitOffsetPayload, validSecret);
+      const result = verifySignedToken(token, validSecret, '2026-12-31T00:00:00Z');
+
+      assert.strictEqual(result.isValid, true);
+      assert.strictEqual(result.isExpired, false);
+      assert.deepStrictEqual(result.payload, explicitOffsetPayload);
+
+      assert.strictEqual(isValidCalendarIsoString('2027-01-01T12:00:00+05:30'), true);
+      assert.strictEqual(isValidCalendarIsoString('2027-01-01T12:00:00-08:00'), true);
     });
 
     it('rejects impossible calendar dates like February 30 (e.g. 2027-02-30)', () => {
-      // Craft a signed payload with impossible calendar date Feb 30
       const impossibleDatePayload = {
         pactId: 'pact-123',
         verifierId: 'ver-456',
@@ -187,7 +281,7 @@ describe('HMAC-SHA256 Signed Verification Token Generator (signed-token.ts)', ()
       const result = verifySignedToken(token, validSecret, '2027-01-01T00:00:00.000Z');
       assert.strictEqual(result.isValid, false);
       assert.strictEqual(result.payload, null);
-      assert.strictEqual(result.error, 'Invalid expiresAtIso date format.');
+      assert.match(result.error ?? '', /expiresAtIso/i);
 
       // Also ensure generator throws on impossible dates
       assert.throws(

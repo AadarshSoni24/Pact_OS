@@ -31,20 +31,24 @@ function validateSecretKey(secretKey: string): void {
 }
 
 /**
- * Validates that an ISO date string matches standard ISO 8601 format
- * and represents a real calendar date (rejecting impossible dates like Feb 30).
+ * Validates that an ISO date string matches standard ISO 8601 format with an explicit
+ * timezone offset (e.g. 'Z', '+05:30', '-08:00') and represents a real calendar date
+ * (rejecting impossible calendar dates like February 30).
  */
 export function isValidCalendarIsoString(dateStr: string): boolean {
   if (typeof dateStr !== 'string') return false;
 
-  // Match ISO 8601: YYYY-MM-DDTHH:mm:ss(.sss)?(Z|[+-]HH:mm)? or YYYY-MM-DD
-  const regex = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(?:Z|([+-])(\d{2})(?::?(\d{2}))?)?)?$/i;
+  // Match ISO 8601 with mandatory time and mandatory timezone offset (Z or [+-]HH:mm / [+-]HHmm / [+-]HH)
+  const regex = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|(?:([+-])(\d{2}):?(\d{2})?))$/i;
   const match = dateStr.match(regex);
   if (!match) return false;
 
   const year = parseInt(match[1], 10);
   const month = parseInt(match[2], 10);
   const day = parseInt(match[3], 10);
+  const hours = parseInt(match[4], 10);
+  const minutes = parseInt(match[5], 10);
+  const seconds = parseInt(match[6], 10);
 
   if (month < 1 || month > 12) return false;
 
@@ -54,22 +58,15 @@ export function isValidCalendarIsoString(dateStr: string): boolean {
 
   if (day < 1 || day > daysInMonth[month - 1]) return false;
 
-  // If time component is present, validate hours, minutes, seconds
-  if (match[4] !== undefined) {
-    const hours = parseInt(match[4], 10);
-    const minutes = parseInt(match[5], 10);
-    const seconds = parseInt(match[6], 10);
+  if (hours < 0 || hours > 23) return false;
+  if (minutes < 0 || minutes > 59) return false;
+  if (seconds < 0 || seconds > 59) return false;
 
-    if (hours < 0 || hours > 23) return false;
-    if (minutes < 0 || minutes > 59) return false;
-    if (seconds < 0 || seconds > 59) return false;
-
-    // Validate timezone offset if present
-    if (match[9] !== undefined) {
-      const tzHours = parseInt(match[9], 10);
-      const tzMinutes = match[10] !== undefined ? parseInt(match[10], 10) : 0;
-      if (tzHours < 0 || tzHours > 23 || tzMinutes < 0 || tzMinutes > 59) return false;
-    }
+  // Validate timezone offset if not 'Z'
+  if (match[9] !== undefined) {
+    const tzHours = parseInt(match[10], 10);
+    const tzMinutes = match[11] !== undefined ? parseInt(match[11], 10) : 0;
+    if (tzHours < 0 || tzHours > 23 || tzMinutes < 0 || tzMinutes > 59) return false;
   }
 
   const d = new Date(dateStr);
@@ -103,7 +100,7 @@ export function generateSignedToken(
   }
 
   if (typeof payload.expiresAtIso !== 'string' || !isValidCalendarIsoString(payload.expiresAtIso)) {
-    throw new Error('expiresAtIso must be a valid calendar ISO date string.');
+    throw new Error('expiresAtIso must be a valid calendar ISO date string with explicit timezone offset.');
   }
 
   if (payload.customData !== undefined) {
@@ -289,7 +286,7 @@ export function verifySignedToken(
       : {}),
   };
 
-  // Clock validation
+  // Clock validation (requires explicit timezone)
   let now: Date;
   if (nowClockIso !== undefined) {
     if (typeof nowClockIso !== 'string' || !isValidCalendarIsoString(nowClockIso)) {
@@ -297,7 +294,7 @@ export function verifySignedToken(
         isValid: false,
         isExpired: false,
         payload: null,
-        error: 'Invalid nowClockIso date format.',
+        error: 'Invalid nowClockIso date format: must include explicit timezone offset.',
       };
     }
     now = new Date(nowClockIso);
@@ -305,13 +302,13 @@ export function verifySignedToken(
     now = new Date();
   }
 
-  // Expiration validation with calendar correctness
+  // Expiration validation with calendar correctness & explicit timezone
   if (!isValidCalendarIsoString(payload.expiresAtIso)) {
     return {
       isValid: false,
       isExpired: false,
       payload: null,
-      error: 'Invalid expiresAtIso date format.',
+      error: 'Invalid expiresAtIso date format: must include explicit timezone offset.',
     };
   }
 
@@ -321,7 +318,7 @@ export function verifySignedToken(
       isValid: false,
       isExpired: false,
       payload: null,
-      error: 'Invalid expiresAtIso date format.',
+      error: 'Invalid expiresAtIso date format: must include explicit timezone offset.',
     };
   }
 
