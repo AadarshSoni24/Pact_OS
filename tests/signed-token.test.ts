@@ -285,9 +285,23 @@ describe('HMAC-SHA256 Signed Verification Token Generator (signed-token.ts)', ()
 
       // Also ensure generator throws on impossible dates
       assert.throws(
-        () => generateSignedToken(impossibleDatePayload as any, validSecret),
+        () =>
+          generateSignedToken(
+            impossibleDatePayload as unknown as SignedTokenPayload,
+            validSecret
+          ),
         /expiresAtIso must be a valid calendar ISO date string/i
       );
+    });
+
+    it('rejects tokens containing non-base64url characters in payload or signature', () => {
+      const token = generateSignedToken(mockPayload, validSecret);
+      const [payloadB64, sigB64] = token.split('.');
+
+      assert.strictEqual(verifySignedToken(`${payloadB64}+==.${sigB64}`, validSecret).isValid, false);
+      assert.strictEqual(verifySignedToken(`${payloadB64}.${sigB64}==`, validSecret).isValid, false);
+      assert.strictEqual(verifySignedToken(`${payloadB64} .${sigB64}`, validSecret).isValid, false);
+      assert.strictEqual(verifySignedToken(`${payloadB64}.${sigB64}/`, validSecret).isValid, false);
     });
 
     it('correctly handles leap year dates (2024-02-29 vs 2023-02-29)', () => {

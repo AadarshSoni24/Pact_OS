@@ -17,6 +17,7 @@ export interface VerificationResult {
 
 const MIN_SECRET_LENGTH = 16;
 const ALLOWED_ACTIONS: ReadonlySet<string> = new Set(['approve', 'reject', 'attest']);
+const BASE64URL_REGEX = /^[A-Za-z0-9_-]+$/;
 
 /**
  * Validates that secretKey is at least 16 characters long.
@@ -157,6 +158,15 @@ export function verifySignedToken(
   }
 
   const [payloadB64Url, signatureB64Url] = parts;
+
+  if (!BASE64URL_REGEX.test(payloadB64Url) || !BASE64URL_REGEX.test(signatureB64Url)) {
+    return {
+      isValid: false,
+      isExpired: false,
+      payload: null,
+      error: 'Invalid token encoding: segments must contain only URL-safe base64 characters.',
+    };
+  }
 
   // Recompute HMAC-SHA256 over payload segment
   const expectedSigBuffer = createHmac('sha256', secretKey)
