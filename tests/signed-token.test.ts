@@ -309,5 +309,36 @@ describe('HMAC-SHA256 Signed Verification Token Generator (signed-token.ts)', ()
       assert.strictEqual(isValidCalendarIsoString('2023-02-29T00:00:00.000Z'), false);
       assert.strictEqual(isValidCalendarIsoString('2026-04-31T00:00:00.000Z'), false);
     });
+
+    it('correctly serializes and verifies payloads backed by class prototype getters', () => {
+      class GetterPayload implements SignedTokenPayload {
+        get pactId() {
+          return 'pact-uuid-class-123';
+        }
+        get verifierId() {
+          return 'verifier-user-456';
+        }
+        get action(): 'approve' {
+          return 'approve';
+        }
+        get expiresAtIso() {
+          return '2027-01-01T00:00:00.000Z';
+        }
+        get customData() {
+          return { role: 'mentor' };
+        }
+      }
+
+      const instance = new GetterPayload();
+      const token = generateSignedToken(instance, validSecret);
+      const result = verifySignedToken(token, validSecret, '2026-11-23T00:00:00.000Z');
+
+      assert.strictEqual(result.isValid, true);
+      assert.strictEqual(result.isExpired, false);
+      assert.strictEqual(result.payload?.pactId, 'pact-uuid-class-123');
+      assert.strictEqual(result.payload?.verifierId, 'verifier-user-456');
+      assert.strictEqual(result.payload?.action, 'approve');
+      assert.deepStrictEqual(result.payload?.customData, { role: 'mentor' });
+    });
   });
 });

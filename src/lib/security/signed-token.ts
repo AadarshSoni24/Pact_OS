@@ -114,8 +114,16 @@ export function generateSignedToken(
     }
   }
 
-  // 1. Serialize payload to JSON and encode to URL-safe base64
-  const serializedPayload = JSON.stringify(payload);
+  // 1. Construct an explicit plain object to serialize validated fields cleanly,
+  // preserving getter-backed instances as well as ordinary plain objects
+  const normalizedPayload: SignedTokenPayload = {
+    pactId: payload.pactId,
+    verifierId: payload.verifierId,
+    action: payload.action,
+    expiresAtIso: payload.expiresAtIso,
+    ...(payload.customData !== undefined ? { customData: payload.customData } : {}),
+  };
+  const serializedPayload = JSON.stringify(normalizedPayload);
   const payloadB64Url = Buffer.from(serializedPayload, 'utf-8').toString('base64url');
 
   // 2. Compute HMAC-SHA256 signature in URL-safe base64
